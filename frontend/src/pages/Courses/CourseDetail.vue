@@ -23,6 +23,15 @@
 					side="bottom"
 					align="end"
 				/>
+				<Button
+					v-if="user.data?.is_moderator && !isMobile"
+					:variant="course.data?.published ? 'subtle' : 'solid'"
+					:theme="course.data?.published ? 'red' : 'gray'"
+					:loading="publishToggle.loading"
+					@click="togglePublishCourse"
+				>
+					{{ course.data?.published ? __('Unpublish') : __('Publish') }}
+				</Button>
 				<Tooltip
 					v-if="!courseFormRef.isDirty"
 					:text="__('No changes to save')"
@@ -66,36 +75,34 @@
 						</template>
 					</Button>
 				</Tooltip>
-				<router-link
-					:to="{
-						name: 'Lesson',
-						params: {
-							courseName: props.courseName,
-							chapterNumber: editorSelected.chapterNumber,
-							lessonNumber: editorSelected.lessonNumber,
-						},
-						query: { studentView: 1 },
-					}"
-				>
-					<Tooltip v-if="isMobile" :text="__('Student View')">
-						<Button variant="outline" class="!size-9">
-							<template #icon>
-								<span class="lucide-eye size-4" />
-							</template>
-						</Button>
-					</Tooltip>
-					<Button v-else variant="outline">
-						<template #prefix>
+				<Tooltip v-if="studentViewRoute && isMobile" :text="__('Student View')">
+					<Button
+						variant="outline"
+						class="!size-9"
+						:label="__('Student View')"
+						:route="studentViewRoute"
+					>
+						<template #icon>
 							<span class="lucide-eye size-4" />
 						</template>
-						{{ __('Student View') }}
 					</Button>
-				</router-link>
+				</Tooltip>
+				<Button
+					v-else-if="studentViewRoute"
+					variant="outline"
+					:route="studentViewRoute"
+				>
+					<template #prefix>
+						<span class="lucide-eye size-4" />
+					</template>
+					{{ __('Student View') }}
+				</Button>
 			</template>
 			<Button
 				v-if="tab?.key === 'dashboard' && course.data && isMobile"
 				variant="outline"
 				class="!size-9"
+				:label="__('Enroll')"
 				:tooltip="__('Enroll')"
 				@click="openEnrollForm()"
 			>
@@ -112,15 +119,6 @@
 					<span class="lucide-plus size-4" />
 				</template>
 				{{ __('Enroll') }}
-			</Button>
-			<Button
-				v-if="tab?.key === 'settings' && user.data?.is_moderator && !isMobile"
-				:variant="course.data?.published ? 'outline' : 'solid'"
-				:theme="course.data?.published ? 'red' : 'gray'"
-				:loading="publishToggle.loading"
-				@click="togglePublishCourse"
-			>
-				{{ course.data?.published ? __('Unpublish') : __('Publish') }}
 			</Button>
 		</template>
 
@@ -146,7 +144,7 @@
 					</template>
 				</Button>
 				<div
-					class="min-w-0 flex-1 text-center text-p-xs font-medium tabular-nums text-ink-gray-5"
+					class="min-w-0 flex-1 text-center text-p-xs font-medium tabular-nums text-ink-gray-6"
 				>
 					<span v-if="courseEditorRef?.lessonTotal">
 						{{ courseEditorRef?.lessonIndex }} /
@@ -227,6 +225,7 @@ import {
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
+import type { FrappeResourceError } from 'frappe-ui'
 import { sessionStore } from '@/stores/session'
 import { useScreenSize } from '@/utils/composables'
 import TabbedDetailPage from '@/components/Layouts/pages/TabbedDetailPage.vue'
@@ -240,12 +239,8 @@ import LessonHelp from '@/components/LessonHelp.vue'
 import ShortcutTooltip from '@/components/ShortcutTooltip.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import { openFormRoute } from '@/composables/useFormRoute'
-import type {
-	CourseDetails,
-	CourseInstructorInfo,
-	Resource,
-	SessionUser,
-} from '@/types'
+import type { CourseDetails, Resource, SessionUser } from '@/types'
+import { isInstructorOf } from '@/utils/instructors'
 
 type Brand = { name?: string; logo?: string; favicon?: string }
 
@@ -264,6 +259,21 @@ interface EditorSelection {
 
 const editorSelected = ref<EditorSelection | null>(null)
 const showLessonHelp = ref(false)
+
+// A lesson just created has no position until the outline reload places it.
+const studentViewRoute = computed(() =>
+	editorSelected.value?.number
+		? {
+				name: 'Lesson',
+				params: {
+					courseName: props.courseName,
+					chapterNumber: editorSelected.value.chapterNumber,
+					lessonNumber: editorSelected.value.lessonNumber,
+				},
+				query: { studentView: 1 },
+		  }
+		: null
+)
 
 type CourseMenuItem = {
 	label: string
@@ -298,6 +308,10 @@ type CourseEditorApi = {
 }
 const courseEditorRef = ref<CourseEditorApi | null>(null)
 
+type PublishResponse = {
+	__onload?: { quizzes_without_questions?: string[] }
+}
+
 const publishToggle = createResource({
 	url: 'frappe.client.set_value',
 	makeParams() {
@@ -308,17 +322,22 @@ const publishToggle = createResource({
 			value: course.data?.published ? 0 : 1,
 		}
 	},
-	onSuccess() {
+	onSuccess(data: PublishResponse) {
 		toast.success(
 			course.data?.published ? __('Course unpublished') : __('Course published')
 		)
+		const emptyQuizzes = data?.__onload?.quizzes_without_questions
+		if (emptyQuizzes?.length) {
+			toast.warning(
+				__(
+					'These quizzes have no questions, so learners skip them: {0}'
+				).format(emptyQuizzes.join(', '))
+			)
+		}
 		course.reload()
 	},
-	onError(err: { messages?: string[] } | string) {
-		const msg =
-			typeof err === 'string'
-				? err
-				: err.messages?.[0] ?? __('Could not update publish status')
+	onError(err: FrappeResourceError) {
+		const msg = err.messages?.[0] ?? __('Could not update publish status')
 		toast.error(msg)
 	},
 }) as Resource<unknown>
@@ -382,6 +401,7 @@ const tabs = computed<DetailTab[]>(() => [
 		icon: 'lucide-list',
 		when: isAdmin.value,
 		flow: true,
+		rendersHeading: true,
 	},
 	{
 		key: 'dashboard',
@@ -416,22 +436,20 @@ watch(
 )
 
 watch(course, () => {
-	if (!isAdmin.value && !course.data?.published && !course.data?.upcoming) {
+	if (
+		!isAdmin.value &&
+		!course.data?.membership &&
+		!course.data?.published &&
+		!course.data?.upcoming
+	) {
 		router.push({
 			name: 'Courses',
 		})
 	}
 })
 
-const isInstructor = (): boolean => {
-	let user_is_instructor = false
-	course.data?.instructors.forEach((instructor: CourseInstructorInfo) => {
-		if (!user_is_instructor && instructor.name == user.data?.name) {
-			user_is_instructor = true
-		}
-	})
-	return user_is_instructor
-}
+const isInstructor = (): boolean =>
+	isInstructorOf(course.data?.instructors, user.data?.username)
 
 const isAdmin = computed<boolean>(() => {
 	return Boolean(user.data?.is_moderator) || isInstructor()

@@ -43,7 +43,6 @@ const emailAccountDefaults = markRaw(
 export const settingsTree: SettingsGroup[] = [
 	{
 		label: 'System Configuration',
-		hideLabel: false,
 		items: [
 			{
 				label: 'General',
@@ -95,7 +94,6 @@ export const settingsTree: SettingsGroup[] = [
 	},
 	{
 		label: 'Course Configuration',
-		hideLabel: false,
 		items: [
 			{
 				label: 'Progress',
@@ -259,19 +257,18 @@ export const settingsTree: SettingsGroup[] = [
 	},
 	{
 		label: 'User Management',
-		hideLabel: false,
 		items: [
 			{
 				label: 'Users',
 				slug: 'members',
 				icon: 'lucide-user',
+				records: true,
 				page: membersSettingsPage,
 			},
 		],
 	},
 	{
 		label: 'Payment',
-		hideLabel: false,
 		items: [
 			{
 				label: 'Configuration',
@@ -290,6 +287,7 @@ export const settingsTree: SettingsGroup[] = [
 									name: 'default_currency',
 									type: 'link',
 									doctype: 'Currency',
+									query: 'lms.lms.api.search_currencies',
 									description:
 										'Default currency used for course and batch pricing.',
 									// Shown, never written by being shown. Nothing on the
@@ -380,7 +378,6 @@ export const settingsTree: SettingsGroup[] = [
 		// Conferencing folded in here. Google Meet, Calendar and Zoom are
 		// conferencing providers, no different from the rest of Integrations.
 		label: 'Integrations',
-		hideLabel: false,
 		items: [
 			{
 				label: 'Services',
@@ -421,7 +418,6 @@ export const settingsTree: SettingsGroup[] = [
 	},
 	{
 		label: 'Customization',
-		hideLabel: false,
 		items: [
 			{
 				label: 'Branding',

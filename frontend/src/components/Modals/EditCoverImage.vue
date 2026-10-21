@@ -1,6 +1,6 @@
 <template>
 	<Popover bare>
-		<template #trigger="{ open, setOpen }" class="flex w-full">
+		<template #trigger="{ open, setOpen }">
 			<slot v-bind="{ open, setOpen }"></slot>
 		</template>
 		<template #default>
@@ -8,12 +8,12 @@
 				class="absolute start-1/2 mt-3 w-96 max-w-lg -translate-x-1/2 transform rounded-6 bg-surface-base px-4 sm:px-0 lg:max-w-3xl"
 			>
 				<div
-					class="overflow-hidden rounded-6 p-3 shadow-2xl ring-1 ring-black ring-opacity-5"
+					class="overflow-hidden rounded-6 p-3 shadow-2xl ring-1 ring-outline-gray-2"
 				>
 					<div class="flex items-center justify-center gap-x-2">
 						<TextInput
 							type="text"
-							placeholder="search by keyword"
+							:placeholder="__('search by keyword')"
 							:aria-label="__('Search images by keyword')"
 							v-model="search"
 							:debounce="300"
@@ -30,7 +30,11 @@
 							>
 								<div class="">
 									<Button @click="openFileSelector" :loading="uploading">
-										{{ uploading ? `Uploading ${progress}%` : 'Upload Image' }}
+										{{
+											uploading
+												? __('Uploading {0}%').format(progress)
+												: __('Upload Image')
+										}}
 									</Button>
 								</div>
 							</template>
@@ -62,7 +66,7 @@
 					     box that reads as a broken picker. -->
 					<div
 						v-else-if="hasFetched && !images.loading"
-						class="mt-2 w-[25.5rem] rounded-4 border border-dashed p-4 text-center text-sm text-ink-gray-5"
+						class="mt-2 w-[25.5rem] rounded-4 border border-dashed p-4 text-center text-sm text-ink-gray-6"
 					>
 						<template v-if="search">
 							{{ __('No images found for "{0}".').format(search) }}
@@ -137,7 +141,7 @@ const saveImage = (file) => {
 const validateFile = (file) => {
 	let extension = file.name.split('.').pop().toLowerCase()
 	if (!['jpg', 'jpeg', 'png'].includes(extension)) {
-		return 'Only image file is allowed.'
+		return __('Only image file is allowed.')
 	}
 }
 </script>

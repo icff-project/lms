@@ -35,9 +35,11 @@
 						<button
 							type="button"
 							:aria-label="__('Close')"
-							class="lucide-x ms-auto size-4 text-ink-gray-7"
+							class="-m-1 ms-auto size-6 p-1 text-ink-gray-7"
 							@click="iosInstallMessage = false"
-						/>
+						>
+							<span class="lucide-x size-4" aria-hidden="true" />
+						</button>
 					</span>
 				</div>
 				<div class="px-3 text-xs text-ink-gray-8">
@@ -51,7 +53,7 @@
 						</span>
 						<span class="inline-flex items-start whitespace-nowrap">
 							<span>{{ __('Tap') }}&nbsp;</span>
-							<span class="lucide-share size-4 text-blue-600" />
+							<span class="lucide-share size-4 text-ink-blue-8" />
 							<span>&nbsp;{{ __("and then 'Add to Home Screen'") }}</span>
 						</span>
 					</span>

@@ -1,9 +1,11 @@
 <template>
+	<NotFound v-if="(batch.fetched || batch.error) && !batch.data?.name" />
 	<TabbedDetailPage
+		v-else
 		ref="page"
 		:tabs="tabs"
 		:breadcrumbs="breadcrumbs"
-		:published="Boolean(batch.data?.published)"
+		:published="isAdmin && Boolean(batch.data?.published)"
 		:loading="!batch.data"
 		:doc="batch"
 		doc-prop="batch"
@@ -12,31 +14,25 @@
 			<Badge v-if="tab?.key === 'settings' && instance?.isDirty" theme="amber">
 				{{ __('Not Saved') }}
 			</Badge>
+			<Dropdown
+				v-if="isAdmin && batchMenu(tab).length"
+				:options="batchMenu(tab)"
+				:button="{
+					icon: 'lucide-ellipsis',
+					variant: 'ghost',
+					label: __('Batch options'),
+				}"
+				side="bottom"
+				align="end"
+			/>
 			<Button
 				v-if="tab?.key === 'settings' && isAdmin && !isMobile"
-				:variant="batch.data?.published ? 'outline' : 'solid'"
+				:variant="batch.data?.published ? 'subtle' : 'solid'"
 				:theme="batch.data?.published ? 'red' : 'gray'"
 				@click="togglePublishBatch"
 			>
 				{{ batch.data?.published ? __('Unpublish') : __('Publish') }}
 			</Button>
-			<Dropdown
-				v-if="isAdmin && batchMenu(tab).length"
-				:options="batchMenu(tab)"
-				side="left"
-			>
-				<template v-slot="{ open }">
-					<Button
-						variant="ghost"
-						:label="__('Batch options')"
-						:aria-expanded="open"
-					>
-						<template #icon>
-							<span class="lucide-ellipsis-vertical w-4 h-4" />
-						</template>
-					</Button>
-				</template>
-			</Dropdown>
 			<HeaderButton
 				v-if="tab?.key === 'dashboard' && isAdmin"
 				:label="__('Enroll')"
@@ -45,7 +41,7 @@
 			/>
 			<template v-if="tab?.key === 'announcements' && isAdmin && !readOnlyMode">
 				<Tooltip
-					v-if="!batch.data?.students?.length"
+					v-if="!batch.data?.student_count"
 					:text="__('Add students to the batch to make an announcement')"
 				>
 					<HeaderButton
@@ -120,6 +116,7 @@ import HeaderButton from '@/components/HeaderButton.vue'
 import ShortcutTooltip from '@/components/ShortcutTooltip.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import TabbedDetailPage from '@/components/Layouts/pages/TabbedDetailPage.vue'
+import NotFound from '@/pages/NotFound.vue'
 import { openBatchForm } from '@/composables/useBatchForms'
 
 const router = useRouter()
@@ -146,11 +143,6 @@ const batch = createResource({
 		batch: props.batchName,
 	}),
 	auto: true,
-	onSuccess: (data) => {
-		if (!data) {
-			router.push({ name: 'Batches' })
-		}
-	},
 })
 
 // The router reuses this component when you go straight from one batch to
@@ -170,11 +162,15 @@ watch(
 provide('reloadBatchDetails', () => batch.reload())
 
 const isAdmin = computed(() => {
-	return Boolean(user.data?.is_moderator || user.data?.is_evaluator)
+	// is_moderator/is_evaluator are session-wide roles; can_manage is this
+	// batch's own tag, since a Course Creator only manages batches they author.
+	return Boolean(
+		user.data?.is_moderator || user.data?.is_evaluator || batch.data?.can_manage
+	)
 })
 
 const isStudent = computed(() => {
-	return Boolean(batch.data?.students?.includes(user.data?.name))
+	return Boolean(batch.data?.is_student)
 })
 
 const tabs = computed(() => {
@@ -187,6 +183,7 @@ const tabs = computed(() => {
 			icon: 'lucide-list',
 			when: enrolled,
 			flow: true,
+			rendersHeading: true,
 		},
 		{
 			key: 'dashboard',
@@ -333,6 +330,6 @@ usePageMeta(() => {
 
 .batch-description strong {
 	font-weight: 600;
-	color: theme('colors.gray.900') !important;
+	color: var(--ink-gray-9) !important;
 }
 </style>
