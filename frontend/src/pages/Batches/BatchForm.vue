@@ -188,7 +188,7 @@
 							:required="true"
 						/>
 						<div
-							class="rounded-t-lg rounded-b-md outline-none transition-[box-shadow] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+							class="rounded-t-6 rounded-b-5 outline-none transition-[box-shadow] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
 						>
 							<RichTextEditor
 								:id="batchDetailsId"
@@ -196,7 +196,7 @@
 								@change="(val: string) => updateBatchDetails(val)"
 								:editable="true"
 								:fixedMenu="true"
-								editorClass="prose-sm max-w-none border-b border-x border-outline-gray-2 hover:border-outline-gray-3 hover:shadow-sm focus-within:border-outline-gray-4 focus-within:shadow-sm rounded-b-md py-1 px-2 min-h-[7rem] max-h-[16rem] overflow-y-scroll transition-colors"
+								editorClass="prose-sm max-w-none border-b border-x border-outline-gray-2 hover:border-outline-gray-3 hover:shadow-sm focus-within:border-outline-gray-4 focus-within:shadow-sm rounded-b-5 py-1 px-2 min-h-[7rem] max-h-[16rem] overflow-y-scroll transition-colors"
 							/>
 						</div>
 					</div>
@@ -222,7 +222,7 @@
 							variant="outline"
 							:onCreate="
 								(value, close) => {
-									openSettings('Zoom Accounts', close)
+									openSettings('zoom', close)
 								}
 							"
 						/>
@@ -234,7 +234,7 @@
 							variant="outline"
 							:onCreate="
 								(value, close) => {
-									openSettings('Google Meet Accounts', close)
+									openSettings('google-meet', close)
 								}
 							"
 						/>
@@ -604,6 +604,27 @@ const timezoneResource = createResource({
 
 const timezoneOptions = computed(() =>
 	(timezoneResource.data || []).map((tz: string) => ({ label: tz, value: tz }))
+)
+
+const systemTimezone = ref<string | null>(null)
+
+createResource({
+	url: 'lms.lms.api.get_system_preferences',
+	auto: true,
+	onSuccess: (data: { time_zone: string }) => {
+		systemTimezone.value = data.time_zone
+	},
+})
+
+// A new batch opens on the site's own timezone rather than an empty picker.
+// Sampling batchDetail.doc once inside that onSuccess dropped the default
+// whenever the preferences answered before the full document fetch, the common case.
+watch(
+	[() => batchDetail.doc, systemTimezone],
+	([doc, zone]) => {
+		if (doc && zone && !doc.timezone) doc.timezone = zone
+	},
+	{ immediate: true }
 )
 
 const mediumOptions = computed(() => {

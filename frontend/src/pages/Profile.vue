@@ -65,7 +65,7 @@
 									? __('Open to Work')
 									: __('Hiring')
 							"
-							placement="right"
+							side="right"
 						>
 							<div
 								class="absolute bottom-3 end-1 p-0.5 bg-surface-base rounded-full"
@@ -74,8 +74,8 @@
 									class="rounded-full w-fit"
 									:class="
 										profile.data.open_to === 'Work'
-											? 'bg-surface-green-7 text-ink-green-1'
-											: 'bg-surface-violet-7 text-ink-violet-1'
+											? 'bg-surface-green-7 text-white'
+											: 'bg-surface-violet-7 text-white'
 									"
 								>
 									<span class="lucide-badge-check size-5" />
@@ -157,7 +157,7 @@ import {
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, watch, ref, onMounted, watchEffect } from 'vue'
-import PageHeader from '@/components/Layouts/PageHeader.vue'
+import PageHeader from '@/components/Layouts/pages/PageHeader.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import { sessionStore } from '@/stores/session'
 import { Github, Linkedin, Twitter } from 'lucide-vue-next'
@@ -238,6 +238,11 @@ watchEffect(() => {
 		Slots: { name: 'ProfileEvaluator' },
 		Schedule: { name: 'ProfileEvaluationSchedule' },
 	}[activeTab.value]
+	// `route.name` is read through the router's current-route ref, so this effect
+	// re-runs on every navigation, a hash-only one included, and a bare {name}
+	// push carries no hash. That took '#settings/<slug>' straight back off the
+	// URL, so settings never opened on this page.
+	if (!target || route.name === target.name) return
 	router.push(target)
 })
 

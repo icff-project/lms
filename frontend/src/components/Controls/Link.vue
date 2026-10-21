@@ -9,7 +9,9 @@
 			:size="(attrs.size as ComboboxSize) || 'sm'"
 			:aria-label="label ? undefined : (attrs['aria-label'] as string)"
 			:variant="attrs.variant as ComboboxVariant"
+			:align="props.align"
 			:loading="options.loading"
+			:filterable="false"
 			:label="label ? __(label) : undefined"
 			:required="required"
 			:description="description"
@@ -26,7 +28,7 @@
 				>
 					<div v-if="creating" class="flex items-center gap-1">
 						<button
-							class="p-1 rounded hover:bg-surface-gray-3 text-ink-gray-5"
+							class="p-1 rounded-4 hover:bg-surface-gray-3 text-ink-gray-5"
 							:aria-label="__('Cancel')"
 							@click="creating = false"
 						>
@@ -85,7 +87,7 @@ import { useAttrs, computed, ref, watch } from 'vue'
 import { useSettings } from '@/stores/settings'
 import type { Resource } from '@/types'
 
-type ComboboxSize = 'sm' | 'md' | 'lg' | 'xl'
+type ComboboxSize = 'xs' | 'sm' | 'md' | 'lg'
 type ComboboxVariant = 'subtle' | 'outline' | 'ghost'
 
 interface LinkOption {
@@ -108,8 +110,16 @@ const props = withDefaults(
 		inlineCreate?: boolean
 		inlineCreatePlaceholder?: string
 		onCreate?: CreateHandler
+		// Where the popover hangs off the control. `end` is the trailing edge in
+		// either direction, so a control near the end of a row opens inwards.
+		align?: 'start' | 'center' | 'end'
+		/**
+		 * search_link puts the record name in `label`, title_field in
+		 * `description`. Swaps which shows bold, for this caller only.
+		 */
+		titleFirst?: boolean
 	}>(),
-	{ inlineCreatePlaceholder: 'Enter...' }
+	{ inlineCreatePlaceholder: 'Enter...', align: 'start' }
 )
 
 const emit = defineEmits<{
@@ -136,9 +146,10 @@ const searchTransform = (data: LinkOption[]): LinkOption[] =>
 		const label = o.label || o.value
 		// Drop the description when it just repeats the label.
 		const hasDescription = o.description && o.description !== label
-		return hasDescription
-			? { label, value: o.value, description: o.description }
-			: { label, value: o.value }
+		if (!hasDescription) return { label, value: o.value }
+		return props.titleFirst
+			? { label: o.description as string, value: o.value, description: label }
+			: { label, value: o.value, description: o.description }
 	})
 
 const options = createResource({

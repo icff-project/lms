@@ -20,8 +20,8 @@
 				v-if="quiz.data.duration"
 				class="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full transition-colors"
 				:class="{
-					'bg-surface-red-1 text-ink-red-6': timerUrgency === 'critical',
-					'bg-surface-orange-1 text-ink-orange-6': timerUrgency === 'warning',
+					'bg-surface-red-1 text-ink-red-5': timerUrgency === 'critical',
+					'bg-surface-orange-1 text-ink-orange-5': timerUrgency === 'warning',
 					'bg-surface-gray-3 text-ink-gray-7': timerUrgency === 'normal',
 				}"
 			>
@@ -45,7 +45,7 @@
 
 		<div v-if="activeQuestion == 0" class="space-y-4">
 			<!-- Info card — full width -->
-			<div class="border rounded-xl overflow-hidden">
+			<div class="border rounded-7 overflow-hidden">
 				<div class="px-5 pt-5 pb-4 space-y-3 text-center">
 					<h2 class="text-xl font-semibold text-ink-gray-9 leading-snug">
 						{{ quiz.data.title }}
@@ -77,17 +77,33 @@
 						</span>
 						<span
 							v-if="quiz.data.duration"
-							class="inline-flex items-center gap-1.5 bg-surface-blue-1 text-ink-blue-6 text-xs font-medium px-2.5 py-1 rounded-full"
+							class="inline-flex items-center gap-1.5 bg-surface-blue-1 text-ink-blue-5 text-xs font-medium px-2.5 py-1 rounded-full"
 						>
 							<span class="lucide-timer size-3.5" />
 							{{ quiz.data.duration }} {{ __('min') }}
 						</span>
 						<span
 							v-if="quiz.data.enable_proctoring"
-							class="inline-flex items-center gap-1.5 bg-surface-orange-1 text-ink-orange-6 text-xs font-medium px-2.5 py-1 rounded-full"
+							class="inline-flex items-center gap-1.5 bg-surface-orange-1 text-ink-orange-5 text-xs font-medium px-2.5 py-1 rounded-full"
 						>
 							<span class="lucide-camera size-3.5" />
 							{{ __('Proctored') }}
+						</span>
+						<span
+							v-if="quiz.data.enable_scheduling && quiz.data.schedule_start"
+							class="inline-flex items-center gap-1.5 bg-surface-gray-3 text-ink-gray-7 text-xs font-medium px-2.5 py-1 rounded-full"
+						>
+							<span class="lucide-calendar size-3.5" />
+							{{ __('Opens') }}:
+							{{ formatScheduleDate(quiz.data.schedule_start) }}
+						</span>
+						<span
+							v-if="quiz.data.enable_scheduling && quiz.data.schedule_end"
+							class="inline-flex items-center gap-1.5 bg-surface-gray-3 text-ink-gray-7 text-xs font-medium px-2.5 py-1 rounded-full"
+						>
+							<span class="lucide-calendar-x size-3.5" />
+							{{ __('Closes') }}:
+							{{ formatScheduleDate(quiz.data.schedule_end) }}
 						</span>
 					</div>
 				</div>
@@ -229,8 +245,8 @@
 						}}</Button>
 					</template>
 					<template v-else-if="attemptsExhausted">
-						<div class="bg-surface-red-1 rounded-lg px-4 py-3 mb-3">
-							<div class="text-sm text-ink-red-6 leading-5">
+						<div class="bg-surface-red-1 rounded-6 px-4 py-3 mb-3">
+							<div class="text-sm text-ink-red-5 leading-5">
 								{{
 									__(
 										"You've used all {0} {1} for this quiz. Reach out to your instructor if you need to try again."
@@ -239,6 +255,16 @@
 										quiz.data.max_attempts == 1 ? __('attempt') : __('attempts')
 									)
 								}}
+							</div>
+						</div>
+						<Button v-if="inVideo" @click="props.backToVideo()">{{
+							__('Resume Video')
+						}}</Button>
+					</template>
+					<template v-else-if="scheduleBlocked">
+						<div class="bg-surface-amber-1 rounded-6 px-4 py-3 mb-3">
+							<div class="text-sm text-ink-amber-5 leading-5">
+								{{ scheduleMessage }}
 							</div>
 						</div>
 						<Button v-if="inVideo" @click="props.backToVideo()">{{
@@ -276,11 +302,13 @@
 			     columns: split early, the camera preview and the rule text each get
 			     a strip too narrow to read, and every rule wraps to three lines. -->
 			<div
-				v-if="quiz.data.enable_proctoring && !attemptsExhausted"
+				v-if="
+					quiz.data.enable_proctoring && !attemptsExhausted && !scheduleBlocked
+				"
 				class="grid gap-4 md:grid-cols-2"
 			>
 				<!-- Camera setup -->
-				<div class="border rounded-xl overflow-hidden flex flex-col">
+				<div class="border rounded-7 overflow-hidden flex flex-col">
 					<div class="px-4 py-3 border-b">
 						<div class="text-sm font-semibold text-ink-gray-8">
 							{{ __('Camera Setup') }}
@@ -307,7 +335,7 @@
 				</div>
 
 				<!-- Proctoring rules -->
-				<div class="border rounded-xl overflow-hidden flex flex-col">
+				<div class="border rounded-7 overflow-hidden flex flex-col">
 					<div class="px-4 py-3 border-b">
 						<div class="text-sm font-semibold text-ink-gray-8">
 							{{ __('Proctoring Rules') }}
@@ -376,9 +404,9 @@
 						</div>
 						<div class="flex items-start gap-3 px-4 py-3 bg-surface-orange-1">
 							<span
-								class="lucide-alert-triangle size-4 shrink-0 text-ink-orange-5 mt-0.5"
+								class="lucide-alert-triangle size-4 shrink-0 text-ink-orange-4 mt-0.5"
 							/>
-							<div class="text-sm text-ink-orange-6 leading-5">
+							<div class="text-sm text-ink-orange-5 leading-5">
 								{{
 									__(
 										'After {0} {1}, the quiz will be automatically submitted.'
@@ -399,7 +427,7 @@
 			<div v-for="(question, qtidx) in questions" :key="question.name">
 				<div
 					v-if="qtidx == activeQuestion - 1 && questionDetails.data"
-					class="border rounded-lg p-5"
+					class="border rounded-6 p-5"
 				>
 					<div class="flex flex-wrap items-baseline justify-between gap-x-4">
 						<div class="min-w-0 text-sm text-ink-gray-5">
@@ -422,7 +450,7 @@
 					>
 						<label
 							v-if="questionDetails.data[`option_${index}`]"
-							class="flex items-center bg-surface-gray-3 rounded-md p-3 mt-4 w-full min-w-0 cursor-pointer focus:border-blue-600"
+							class="flex items-center bg-surface-gray-3 rounded-5 p-3 mt-4 w-full min-w-0 cursor-pointer focus:border-blue-600"
 						>
 							<input
 								v-if="!showAnswers.length && !questionDetails.data.multiple"
@@ -437,7 +465,7 @@
 								v-else-if="!showAnswers.length && questionDetails.data.multiple"
 								type="checkbox"
 								:name="encodeURIComponent(questionDetails.data.question)"
-								class="w-3.5 h-3.5 shrink-0 text-ink-gray-9 rounded-sm focus:ring-outline-elevation-2"
+								class="w-3.5 h-3.5 shrink-0 text-ink-gray-9 rounded-1 focus:ring-outline-elevation-2"
 								@change="markAnswer(index)"
 								:checked="selectedOptions[index - 1]"
 							/>
@@ -450,15 +478,15 @@
 								<div v-if="index - 1 == idx">
 									<span
 										v-if="answer == 1"
-										class="lucide-check-circle w-4 h-4 text-ink-green-5"
+										class="lucide-check-circle w-4 h-4 text-ink-green-4"
 									/>
 									<span
 										v-else-if="answer == 2"
-										class="lucide-minus-circle w-4 h-4 text-ink-green-5"
+										class="lucide-minus-circle w-4 h-4 text-ink-green-4"
 									/>
 									<span
 										v-else-if="answer == 0"
-										class="lucide-x-circle w-4 h-4 text-ink-red-6"
+										class="lucide-x-circle w-4 h-4 text-ink-red-5"
 									/>
 									<span v-else class="lucide-minus-circle w-4 h-4" />
 								</div>
@@ -488,13 +516,13 @@
 							<Badge v-if="showAnswers[0]" :label="__('Correct')" theme="green">
 								<template #prefix>
 									<span
-										class="lucide-check-circle w-4 h-4 text-ink-green-5 me-1"
+										class="lucide-check-circle w-4 h-4 text-ink-green-4 me-1"
 									/>
 								</template>
 							</Badge>
 							<Badge v-else theme="red" :label="__('Incorrect')">
 								<template #prefix>
-									<span class="lucide-x-circle w-4 h-4 text-ink-red-6 me-1" />
+									<span class="lucide-x-circle w-4 h-4 text-ink-red-5 me-1" />
 								</template>
 							</Badge>
 						</div>
@@ -506,7 +534,7 @@
 							@change="(val) => (possibleAnswer = val)"
 							:editable="true"
 							:fixedMenu="true"
-							editorClass="prose-sm max-w-none border-b border-x border-outline-elevation-2 bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem]"
+							editorClass="prose-sm max-w-none border-b border-x border-outline-elevation-2 bg-surface-gray-2 rounded-b-5 py-1 px-2 min-h-[7rem]"
 						/>
 					</div>
 					<div class="flex items-center mt-8 gap-4">
@@ -518,55 +546,13 @@
 								@change="markForReview($event, activeQuestion)"
 							/>
 						</div>
-						<div
-							v-if="!quiz.data.show_answers"
-							class="flex flex-wrap items-center gap-2"
-						>
+						<div class="flex-1 flex justify-end gap-2">
 							<Button
-								:label="__('Previous question')"
+								v-if="!quiz.data.show_answers && activeQuestion > 1"
 								@click="switchQuestion(activeQuestion - 1)"
-								:disabled="activeQuestion == 1"
-								class="rounded-full"
 							>
-								<template #icon>
-									<span class="lucide-chevron-left size-4" />
-								</template>
+								<span>{{ __('Previous') }}</span>
 							</Button>
-							<component
-								:is="item === '...' ? 'span' : 'button'"
-								v-for="(item, pidx) in paginationWindow"
-								:key="pidx"
-								:type="item === '...' ? null : 'button'"
-								class="w-6 h-6 rounded-full flex items-center justify-center text-sm"
-								:class="{
-									'cursor-pointer': item !== '...',
-									'bg-surface-gray-4 border border-outline-gray-7 font-medium':
-										activeQuestion == item,
-									'text-ink-gray-5': item === '...',
-									'bg-surface-blue-2 text-ink-blue-8':
-										attemptedQuestions.includes(item) && activeQuestion != item,
-									'bg-surface-gray-3 text-ink-gray-6':
-										activeQuestion != item &&
-										item !== '...' &&
-										!attemptedQuestions.includes(item),
-								}"
-								@click="item !== '...' && switchQuestion(item)"
-							>
-								{{ item }}
-							</component>
-
-							<Button
-								:label="__('Next question')"
-								@click="switchQuestion(activeQuestion + 1)"
-								:disabled="activeQuestion == questions.length"
-								class="rounded-full"
-							>
-								<template #icon>
-									<span class="lucide-chevron-right size-4" />
-								</template>
-							</Button>
-						</div>
-						<div class="flex-1 flex justify-end">
 							<Button
 								v-if="
 									quiz.data.show_answers &&
@@ -587,7 +573,11 @@
 							>
 								<span>{{ __('Next') }}</span>
 							</Button>
-							<Button variant="solid" v-else @click="handleSubmitClick()">
+							<Button
+								v-else-if="!preview"
+								variant="solid"
+								@click="handleSubmitClick()"
+							>
 								<span>{{ __('Submit') }}</span>
 							</Button>
 						</div>
@@ -597,7 +587,7 @@
 			<!-- Activity log (shown during quiz, below the question card) -->
 			<div
 				v-if="quiz.data.enable_proctoring && summaryLog.length"
-				class="border rounded-lg overflow-hidden mt-4"
+				class="border rounded-6 overflow-hidden mt-4"
 			>
 				<div
 					class="px-4 py-2.5 border-b flex items-center justify-between bg-surface-gray-1"
@@ -620,8 +610,8 @@
 							class="size-1.5 rounded-full shrink-0"
 							:class="
 								entry.severity === 'violation'
-									? 'bg-ink-red-6'
-									: 'bg-ink-orange-6'
+									? 'bg-ink-red-5'
+									: 'bg-ink-orange-5'
 							"
 						/>
 						<span class="text-sm text-ink-gray-7 flex-1">{{
@@ -643,15 +633,15 @@
 										violationEventLabels[entry.eventType] || entry.eventType
 									)
 								"
-								class="h-8 w-11 rounded border object-cover"
+								class="h-8 w-11 rounded-4 border object-cover"
 							/>
 						</a>
 						<span
 							class="text-xs font-medium uppercase tracking-wide shrink-0"
 							:class="
 								entry.severity === 'violation'
-									? 'text-ink-red-6'
-									: 'text-ink-orange-6'
+									? 'text-ink-red-5'
+									: 'text-ink-orange-5'
 							"
 						>
 							{{
@@ -662,7 +652,37 @@
 				</div>
 			</div>
 
-			<div v-if="reviewQuestions.length" class="border rounded-lg p-4 mt-4">
+			<div v-if="!quiz.data.show_answers" class="border rounded-6 p-4 mt-4">
+				<div class="font-semibold">
+					{{ __('Questions') }}
+				</div>
+				<nav
+					:aria-label="__('Question navigation')"
+					class="flex flex-wrap items-center gap-2 mt-2"
+				>
+					<button
+						v-for="index in questions.length"
+						:key="index"
+						type="button"
+						:aria-label="__('Question {0}').format(index)"
+						:aria-current="activeQuestion == index ? 'page' : undefined"
+						@click="switchQuestion(index)"
+						class="w-6 h-6 rounded-full flex items-center justify-center text-sm cursor-pointer"
+						:class="{
+							'bg-surface-gray-7 text-ink-base font-medium':
+								activeQuestion == index,
+							'bg-surface-blue-2 text-ink-blue-5':
+								activeQuestion != index && attemptedQuestions.includes(index),
+							'bg-surface-gray-3':
+								activeQuestion != index && !attemptedQuestions.includes(index),
+						}"
+					>
+						{{ index }}
+					</button>
+				</nav>
+			</div>
+
+			<div v-if="reviewQuestions.length" class="border rounded-6 p-4 mt-4">
 				<div class="font-semibold">
 					{{ __('Questions marked for review') }}
 				</div>
@@ -680,7 +700,7 @@
 			</div>
 		</div>
 		<div v-else class="space-y-4">
-			<div class="border rounded-lg overflow-hidden">
+			<div class="border rounded-6 overflow-hidden">
 				<!-- Violation banner shown when quiz was auto-submitted due to max violations -->
 				<div
 					v-if="
@@ -689,12 +709,12 @@
 					class="bg-surface-red-2 px-5 py-4 border-b border-outline-red-2"
 				>
 					<div class="flex items-center gap-2.5 mb-1">
-						<span class="lucide-shield-x size-4 text-ink-red-6 shrink-0" />
-						<span class="text-sm font-semibold text-ink-red-7">{{
+						<span class="lucide-shield-x size-4 text-ink-red-5 shrink-0" />
+						<span class="text-sm font-semibold text-ink-red-6">{{
 							__('Maximum violations reached')
 						}}</span>
 					</div>
-					<p class="text-sm text-ink-red-6 leading-5 ps-6.5">
+					<p class="text-sm text-ink-red-5 leading-5 ps-6.5">
 						{{
 							__(
 								'This quiz was submitted automatically because you reached the maximum of {0} {1}. Reach out to your instructor if you need to try again.'
@@ -753,7 +773,7 @@
 			<!-- Activity log persists into summary view for proctored quizzes -->
 			<div
 				v-if="quiz.data.enable_proctoring && summaryLog.length"
-				class="border rounded-lg overflow-hidden"
+				class="border rounded-6 overflow-hidden"
 			>
 				<div
 					class="px-4 py-2.5 border-b flex items-center justify-between bg-surface-gray-1"
@@ -776,8 +796,8 @@
 							class="size-1.5 rounded-full shrink-0"
 							:class="
 								entry.severity === 'violation'
-									? 'bg-ink-red-6'
-									: 'bg-ink-orange-6'
+									? 'bg-ink-red-5'
+									: 'bg-ink-orange-5'
 							"
 						/>
 						<span class="text-sm text-ink-gray-7 flex-1">{{
@@ -799,15 +819,15 @@
 										violationEventLabels[entry.eventType] || entry.eventType
 									)
 								"
-								class="h-8 w-11 rounded border object-cover"
+								class="h-8 w-11 rounded-4 border object-cover"
 							/>
 						</a>
 						<span
 							class="text-xs font-medium uppercase tracking-wide shrink-0"
 							:class="
 								entry.severity === 'violation'
-									? 'text-ink-red-6'
-									: 'text-ink-orange-6'
+									? 'text-ink-red-5'
+									: 'text-ink-orange-5'
 							"
 						>
 							{{
@@ -888,13 +908,13 @@
 						/>
 					</div>
 					<div class="flex justify-between text-xs">
-						<span class="text-ink-green-7 font-medium"
+						<span class="text-ink-green-6 font-medium"
 							>{{ attemptedQuestions.length }} {{ __('attempted') }}</span
 						>
 						<span
 							:class="
 								questions.length - attemptedQuestions.length > 0
-									? 'text-ink-orange-7 font-medium'
+									? 'text-ink-orange-6 font-medium'
 									: 'text-ink-gray-5'
 							"
 						>
@@ -930,6 +950,7 @@ import {
 } from 'vue'
 import { timeAgo } from '@/utils/format'
 import { safeUrl } from '@/utils/safeUrl'
+import { getScheduleBlockReason } from '@/utils/schedule'
 import ProgressBar from '@/components/ProgressBar.vue'
 import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
@@ -959,6 +980,13 @@ const props = defineProps({
 	quizName: {
 		type: String,
 		required: true,
+	},
+	// Author-facing preview. The learner view is rendered exactly as it ships, but
+	// nothing may be written: a submission here is a real LMS Quiz Submission, it
+	// notifies, and it spends one of the author's own max_attempts.
+	preview: {
+		type: Boolean,
+		default: false,
 	},
 	inVideo: {
 		type: Boolean,
@@ -995,6 +1023,7 @@ const serialiseViolationLog = (withFrames = true) =>
 	)
 
 const handlePageHide = () => {
+	if (props.preview) return
 	if (activeQuestion.value > 0 && !quizSubmission.data) {
 		const params = new URLSearchParams({
 			quiz: quiz.data.name,
@@ -1128,6 +1157,78 @@ const attemptsExhausted = computed(
 		!!quiz.data?.max_attempts &&
 		(attempts.data?.length ?? 0) >= quiz.data.max_attempts
 )
+
+const scheduleNow = ref(new Date())
+let scheduleClock = null
+
+const scheduleBlockReason = computed(() =>
+	getScheduleBlockReason(
+		quiz.data?.enable_scheduling,
+		quiz.data?.schedule_start_iso || quiz.data?.schedule_start,
+		quiz.data?.schedule_end_iso || quiz.data?.schedule_end,
+		scheduleNow.value
+	)
+)
+
+const scheduleBlocked = computed(() => !!scheduleBlockReason.value)
+
+const scheduleMessage = computed(() => {
+	if (scheduleBlockReason.value === 'not_started') {
+		return __('This quiz opens on {0}.').format(
+			formatScheduleDate(
+				quiz.data?.schedule_start_iso || quiz.data?.schedule_start
+			)
+		)
+	}
+	if (scheduleBlockReason.value === 'ended') {
+		return __('The schedule for this quiz has ended.')
+	}
+	return ''
+})
+
+const formatScheduleDate = (value) => {
+	if (!value) return ''
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime())) return String(value)
+	return date.toLocaleString()
+}
+
+watch(scheduleBlockReason, (reason, previous) => {
+	// Questions are withheld while blocked; once the window opens, refetch so
+	// Start can load real prompts without a full page reload.
+	if (previous && !reason && !Object.keys(questionsByName.value).length) {
+		quiz.reload()
+	}
+})
+
+const stopScheduleClock = () => {
+	if (scheduleClock) {
+		clearInterval(scheduleClock)
+		scheduleClock = null
+	}
+}
+
+const startScheduleClock = () => {
+	stopScheduleClock()
+	scheduleNow.value = new Date()
+	scheduleClock = setInterval(() => {
+		scheduleNow.value = new Date()
+	}, 15000)
+}
+
+// Only tick while scheduling is on — keeps lesson-reuse timer tests (and
+// everyday quizzes) free of a leftover interval.
+watch(
+	() => quiz.data?.enable_scheduling,
+	(enabled) => {
+		if (enabled) startScheduleClock()
+		else stopScheduleClock()
+	}
+)
+
+onUnmounted(() => {
+	stopScheduleClock()
+})
 
 const shuffleArray = (array) => {
 	for (let i = array.length - 1; i > 0; i--) {
@@ -1274,8 +1375,13 @@ watch(
 )
 
 const startQuiz = () => {
+	if (scheduleBlocked.value) return
 	activeQuestion.value = 1
 	localStorage.removeItem(quiz.data.title)
+	// Neither in an author preview. Nothing may be submitted there, so a countdown
+	// would reach zero with no way to end the attempt and the camera would stay on
+	// with it, and a violation cap would do the same.
+	if (props.preview) return
 	if (quiz.data.duration) startTimer()
 	if (quiz.data.enable_proctoring) proctoringActive.value = true
 }
@@ -1476,6 +1582,7 @@ const submitQuiz = (reason = 'manual') => {
 }
 
 const createSubmission = (reason = 'manual') => {
+	if (props.preview) return
 	// Which quiz this submission belongs to. The component is reused across
 	// lessons, so by the time the response lands props.quizName may have moved
 	// on — and markLessonProgress() reads window.location.pathname at that
@@ -1581,30 +1688,6 @@ const recordCurrentAttempt = () => {
 	}
 	addToLocalStorage()
 }
-
-const paginationWindow = computed(() => {
-	const total = questions.value.length
-	const current = activeQuestion.value
-	const pages = []
-	const size = 5
-
-	let start = Math.floor((current - 1) / size) * size + 1
-	let end = Math.min(start + size - 1, total)
-
-	if (start > 1) {
-		pages.push('...')
-	}
-
-	for (let i = start; i <= end; i++) {
-		pages.push(i)
-	}
-
-	if (end < total) {
-		pages.push('...')
-	}
-
-	return pages
-})
 
 const markForReview = (event, questionNumber) => {
 	if (event.target.checked) {

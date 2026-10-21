@@ -59,7 +59,7 @@
 			<component
 				:is="row.username ? 'router-link' : 'div'"
 				:to="profileRoute(row.username, 'ProfileAbout')"
-				class="flex flex-col rounded-lg border p-3 text-ink-gray-9"
+				class="flex flex-col rounded-6 border p-3 text-ink-gray-9"
 				:class="
 					row.username ? 'cursor-pointer hover:border-outline-gray-3' : ''
 				"
@@ -113,7 +113,7 @@ import { computed, inject, onMounted, ref } from 'vue'
 import { sessionStore } from '../stores/session'
 import { useRouter } from 'vue-router'
 import UserAvatar from '@/components/UserAvatar.vue'
-import ListPage from '@/components/Layouts/ListPage.vue'
+import ListPage from '@/components/Layouts/pages/ListPage.vue'
 import { profileRoute } from '@/utils/routes'
 
 const filters = ref({})

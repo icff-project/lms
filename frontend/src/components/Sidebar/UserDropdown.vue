@@ -3,7 +3,7 @@
 		<Dropdown :options="userDropdownOptions">
 			<template v-slot="{ open, close }">
 				<button
-					class="flex h-12 items-center rounded-md duration-300 ease-in-out"
+					class="flex h-12 items-center rounded-5 duration-300 ease-in-out"
 					:class="
 						isCollapsed
 							? 'px-0 w-auto'
@@ -16,9 +16,9 @@
 						v-if="branding.data?.banner_image"
 						:src="safeUrl(branding.data?.banner_image.file_url)"
 						alt=""
-						class="w-8 h-8 rounded flex-shrink-0"
+						class="w-8 h-8 rounded-4 flex-shrink-0"
 					/>
-					<LMSLogo v-else class="w-8 h-8 rounded flex-shrink-0" />
+					<LMSLogo v-else class="w-8 h-8 rounded-4 flex-shrink-0" />
 					<div
 						class="flex flex-1 flex-col text-start duration-300 ease-in-out"
 						:class="
@@ -58,10 +58,7 @@
 			</template>
 		</Dropdown>
 	</div>
-	<SettingsModal
-		v-if="userResource.data?.is_moderator"
-		v-model="showSettingsModal"
-	/>
+	<SettingsModal v-if="userResource.data?.is_moderator" />
 </template>
 
 <script setup>
@@ -72,7 +69,7 @@ import { convertToTitleCase } from '@/utils'
 import { toggleTheme, theme } from '@/utils/theme'
 import { usersStore } from '@/stores/user'
 import { useSettings } from '@/stores/settings'
-import { h, watch, ref, computed } from 'vue'
+import { h, computed } from 'vue'
 import { createDialog } from '@/utils/dialogs'
 import FrappeCloudIcon from '@/components/Icons/FrappeCloudIcon.vue'
 import LMSLogo from '@/components/Icons/LMSLogo.vue'
@@ -80,13 +77,13 @@ import SettingsModal from '@/components/Settings/Settings.vue'
 import { Moon, Sun } from 'lucide-vue-next'
 import { safeUrl } from '@/utils/safeUrl'
 import { openExternal } from '@/utils/openExternal'
+import { pushSettingsHash } from '@/composables/useSettingsHash'
 
 const router = useRouter()
 const { logout, branding } = sessionStore()
 let { userResource } = usersStore()
 const settingsStore = useSettings()
 let { isLoggedIn } = sessionStore()
-const showSettingsModal = ref(false)
 const frappeCloudBaseEndpoint = 'https://frappecloud.com'
 const $dialog = createDialog
 
@@ -136,7 +133,7 @@ const appMenuItems = computed(() => {
 				// second announcement of it would only repeat. Without it a screen
 				// reader falls back to reading the logo's filename.
 				h('img', {
-					class: 'size-4 shrink-0 rounded',
+					class: 'size-4 shrink-0 rounded-4',
 					src: app.logo,
 					alt: '',
 				}),
@@ -144,18 +141,11 @@ const appMenuItems = computed(() => {
 	}))
 })
 
-watch(
-	() => settingsStore.isSettingsOpen,
-	(value) => {
-		showSettingsModal.value = value
-	}
-)
-
 const userDropdownOptions = computed(() => {
 	return [
 		{
 			group: '',
-			items: [
+			options: [
 				{
 					icon: 'lucide-user',
 					label: 'My Profile',
@@ -190,7 +180,7 @@ const userDropdownOptions = computed(() => {
 					icon: 'lucide-settings',
 					label: 'Settings',
 					onClick: () => {
-						settingsStore.isSettingsOpen = true
+						pushSettingsHash(router)
 					},
 					condition: () => {
 						return userResource.data?.is_moderator
@@ -241,7 +231,7 @@ const userDropdownOptions = computed(() => {
 								{
 									label: __('Confirm'),
 									variant: 'solid',
-									onClick(close) {
+									onClick({ close }) {
 										loginToFrappeCloud()
 										close()
 									},
@@ -299,7 +289,7 @@ const clearDemoDataConfirmation = () => {
 				label: __('Confirm'),
 				theme: 'red',
 				variant: 'solid',
-				onClick(close) {
+				onClick({ close }) {
 					clearDemoData()
 					close()
 				},

@@ -20,16 +20,23 @@ const resource = {
 
 vi.mock('frappe-ui', () => ({
 	createResource: () => resource,
-	debounce: (fn: (...args: unknown[]) => void) => fn,
+	debounce: (fn: (...args: unknown[]) => void) =>
+		Object.assign(fn, { cancel: () => {} }),
 	Dialog: Object.assign(
 		{ props: ['open', 'size', 'bare'], template: `<div><slot /></div>` },
 		{ Title: { template: `<div><slot /></div>` } }
 	),
 }))
 
-vi.mock('vue-router', () => ({
-	useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-}))
+// Settings is addressed by the URL hash now, so opening it is a navigation:
+// the stub has to carry the pieces pushSettingsHash reads, not just push().
+const router = {
+	currentRoute: { value: { hash: '', query: {} } },
+	options: { history: { state: {} } },
+	push: vi.fn(),
+	replace: vi.fn(),
+}
+vi.mock('vue-router', () => ({ useRouter: () => router }))
 
 vi.mock('@/components/CommandPalette/CommandPaletteGroup.vue', () => ({
 	default: { name: 'PaletteGroup', props: ['list'], template: `<div />` },
@@ -147,6 +154,7 @@ beforeEach(() => {
 	settings.sidebarSettings.data = null
 	resource.next = []
 	resource.params = null
+	router.push.mockClear()
 })
 
 describe('command palette categories', () => {
@@ -270,7 +278,12 @@ describe('command palette categories', () => {
 	it('opens the settings dialog rather than routing', async () => {
 		const wrapper = build()
 		await open(wrapper, 'Settings')
-		expect(settings.isSettingsOpen).toBe(true)
+
+		// The hash opens the dialog over whatever page is showing; a `name` here
+		// would mean the row had navigated away from it instead.
+		const [to] = router.push.mock.calls[0]
+		expect(to.hash).toBe('#settings/general')
+		expect(to).not.toHaveProperty('name')
 	})
 })
 
@@ -344,7 +357,8 @@ describe('command palette settings row', () => {
 		await type(wrapper, 'sett')
 		await open(wrapper, 'Settings')
 
-		expect(settings.isSettingsOpen).toBe(true)
+		const [to] = router.push.mock.calls[0]
+		expect(to.hash).toBe('#settings/general')
 	})
 
 	it('does not offer Settings to a searching student', async () => {
