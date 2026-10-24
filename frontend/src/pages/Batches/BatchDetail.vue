@@ -1,56 +1,47 @@
 <template>
+	<NotFound v-if="(batch.fetched || batch.error) && !batch.data?.name" />
 	<TabbedDetailPage
+		v-else
 		ref="page"
 		:tabs="tabs"
 		:breadcrumbs="breadcrumbs"
-		:published="Boolean(batch.data?.published)"
+		:published="isAdmin && Boolean(batch.data?.published)"
 		:loading="!batch.data"
 		:doc="batch"
 		doc-prop="batch"
 	>
 		<template #actions="{ tab, instance }">
-			<Badge v-if="tab?.key === 'settings' && instance?.isDirty" theme="orange">
+			<Badge v-if="tab?.key === 'settings' && instance?.isDirty" theme="amber">
 				{{ __('Not Saved') }}
 			</Badge>
-			<!-- Publishing is the one action on this page you reach for often
-			     enough that burying it costs more than the header width it
-			     takes. It matches CourseDetail, which kept its own; the menu
-			     entry below is what a phone gets instead. -->
+			<Dropdown
+				v-if="isAdmin && batchMenu(tab).length"
+				:options="batchMenu(tab)"
+				:button="{
+					icon: 'lucide-ellipsis',
+					variant: 'ghost',
+					label: __('Batch options'),
+				}"
+				side="bottom"
+				align="end"
+			/>
 			<Button
 				v-if="tab?.key === 'settings' && isAdmin && !isMobile"
-				:variant="batch.data?.published ? 'outline' : 'solid'"
+				:variant="batch.data?.published ? 'subtle' : 'solid'"
 				:theme="batch.data?.published ? 'red' : 'gray'"
 				@click="togglePublishBatch"
 			>
 				{{ batch.data?.published ? __('Unpublish') : __('Publish') }}
 			</Button>
-			<Dropdown
-				v-if="isAdmin && batchMenu(tab).length"
-				:options="batchMenu(tab)"
-				placement="left"
-				side="left"
-			>
-				<template v-slot="{ open }">
-					<Button
-						variant="ghost"
-						:label="__('Batch options')"
-						:aria-expanded="open"
-					>
-						<template #icon>
-							<span class="lucide-ellipsis-vertical w-4 h-4" />
-						</template>
-					</Button>
-				</template>
-			</Dropdown>
 			<HeaderButton
 				v-if="tab?.key === 'dashboard' && isAdmin"
 				:label="__('Enroll')"
 				icon="lucide-plus"
-				@click="instance?.openEnrollModal?.()"
+				@click="openStudentForm"
 			/>
 			<template v-if="tab?.key === 'announcements' && isAdmin && !readOnlyMode">
 				<Tooltip
-					v-if="!batch.data?.students?.length"
+					v-if="!batch.data?.student_count"
 					:text="__('Add students to the batch to make an announcement')"
 				>
 					<HeaderButton
@@ -73,7 +64,6 @@
 			>
 				<HeaderButton
 					:label="__('Save')"
-					icon="lucide-save"
 					variant="solid"
 					@click="instance?.submitBatch()"
 				/>
@@ -99,21 +89,11 @@
 		</template>
 	</TabbedDetailPage>
 
-	<BulkCertificates
-		v-if="batch.data"
-		v-model="openCertificateDialog"
-		:batch="batch.data"
-	/>
-	<AnnouncementModal
-		v-if="showAnnouncementModal"
-		v-model="showAnnouncementModal"
-		:batch="batch.data.name"
-		:students="batch.data.students"
-	/>
+	<router-view />
 </template>
 <script setup>
-import { computed, inject, markRaw, ref, useTemplateRef, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, inject, markRaw, provide, useTemplateRef, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
 	Badge,
 	Button,
@@ -130,22 +110,24 @@ import StudentBatchDashboard from '@/pages/Batches/components/BatchDashboard.vue
 import BatchOverview from '@/pages/Batches/BatchOverview.vue'
 import LiveClass from '@/pages/Batches/components/LiveClass.vue'
 import Announcements from '@/pages/Batches/components/Announcements.vue'
-import AnnouncementModal from '@/pages/Batches/components/AnnouncementModal.vue'
 import BatchForm from '@/pages/Batches/BatchForm.vue'
-import BulkCertificates from '@/pages/Batches/components/BulkCertificates.vue'
 import Discussions from '@/components/Discussions.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import ShortcutTooltip from '@/components/ShortcutTooltip.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
-import TabbedDetailPage from '@/components/Layouts/TabbedDetailPage.vue'
+import TabbedDetailPage from '@/components/Layouts/pages/TabbedDetailPage.vue'
+import NotFound from '@/pages/NotFound.vue'
+import { openBatchForm } from '@/composables/useBatchForms'
 
 const router = useRouter()
+// Read by every form opener below. TabbedDetailPage still keeps the active tab
+// in route.hash (:143, :158), so a form route opened without it re-renders the
+// page on its first tab.
+const route = useRoute()
 const { brand } = sessionStore()
 const { isMobile } = useScreenSize()
 const user = inject('$user')
 const page = useTemplateRef('page')
-const openCertificateDialog = ref(false)
-const showAnnouncementModal = ref(false)
 const readOnlyMode = window.read_only_mode
 
 const props = defineProps({
@@ -161,11 +143,6 @@ const batch = createResource({
 		batch: props.batchName,
 	}),
 	auto: true,
-	onSuccess: (data) => {
-		if (!data) {
-			router.push({ name: 'Batches' })
-		}
-	},
 })
 
 // The router reuses this component when you go straight from one batch to
@@ -179,12 +156,21 @@ watch(
 	() => batch.reload()
 )
 
+// The forms in the <router-view> below change what this endpoint reports —
+// enrolling a student moves Seats Left on the overlay. Having no cache key is
+// what makes them unable to reach it themselves, so it is handed down.
+provide('reloadBatchDetails', () => batch.reload())
+
 const isAdmin = computed(() => {
-	return Boolean(user.data?.is_moderator || user.data?.is_evaluator)
+	// is_moderator/is_evaluator are session-wide roles; can_manage is this
+	// batch's own tag, since a Course Creator only manages batches they author.
+	return Boolean(
+		user.data?.is_moderator || user.data?.is_evaluator || batch.data?.can_manage
+	)
 })
 
 const isStudent = computed(() => {
-	return Boolean(batch.data?.students?.includes(user.data?.name))
+	return Boolean(batch.data?.is_student)
 })
 
 const tabs = computed(() => {
@@ -197,6 +183,7 @@ const tabs = computed(() => {
 			icon: 'lucide-list',
 			when: enrolled,
 			flow: true,
+			rendersHeading: true,
 		},
 		{
 			key: 'dashboard',
@@ -245,7 +232,11 @@ const tabs = computed(() => {
 })
 
 const openAnnouncementModal = () => {
-	showAnnouncementModal.value = true
+	openBatchForm(router, 'NewAnnouncement', props.batchName, route.hash)
+}
+
+const openStudentForm = () => {
+	openBatchForm(router, 'NewBatchStudent', props.batchName, route.hash)
 }
 
 const publishToggle = createResource({
@@ -280,7 +271,7 @@ const batchMenu = (tab) => {
 			label: __('Generate Certificates'),
 			icon: 'lucide-award',
 			onClick: () => {
-				openCertificateDialog.value = true
+				openBatchForm(router, 'BulkCertificates', props.batchName, route.hash)
 			},
 		})
 	}
@@ -339,6 +330,6 @@ usePageMeta(() => {
 
 .batch-description strong {
 	font-weight: 600;
-	color: theme('colors.gray.900') !important;
+	color: var(--ink-gray-9) !important;
 }
 </style>
