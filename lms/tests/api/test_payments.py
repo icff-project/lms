@@ -1,3 +1,5 @@
+import unittest
+
 import frappe
 
 from lms.lms import payments as payments_module
@@ -52,6 +54,16 @@ class TestPaymentLink(BaseTestUtils):
 	LMS gateway-agnostic.
 	"""
 
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		hash = frappe.generate_hash(length=6)
+		cls.instructor = cls._create_user(
+			f"payinstr-{hash}@example.com", "Ina", "Instructor", ["Course Creator"]
+		)
+		cls.course = cls._create_course(title=f"Paid Payments Course {hash}", instructor=cls.instructor.email)
+		cls.course.db_set({"paid_course": 1, "course_price": 500, "currency": "INR"}, update_modified=False)
+
 	def setUp(self):
 		super().setUp()
 		self.controller = FakeRazorpayController()
@@ -60,15 +72,6 @@ class TestPaymentLink(BaseTestUtils):
 
 		self.original_gateway = frappe.db.get_single_value("LMS Settings", "payment_gateway")
 		frappe.db.set_single_value("LMS Settings", "payment_gateway", "Razorpay")
-
-		hash = frappe.generate_hash(length=6)
-		self.instructor = self._create_user(
-			f"payinstr-{hash}@example.com", "Ina", "Instructor", ["Course Creator"]
-		)
-		self.course = self._create_course(
-			title=f"Paid Payments Course {hash}", instructor=self.instructor.email
-		)
-		self.course.db_set({"paid_course": 1, "course_price": 500, "currency": "INR"}, update_modified=False)
 
 	def tearDown(self):
 		payments_module.get_controller = self.original_get_controller
@@ -100,14 +103,6 @@ class TestPaymentLink(BaseTestUtils):
 		self.assertEqual(self.controller.direct_create_order_calls, [])
 		self.assertEqual(len(self.controller.get_payment_url_calls), 1)
 
-	def test_no_create_order_helper_remains(self):
-		"""`create_order` in lms.lms.payments was a stale copy of logic that has
-		since moved into the payments app."""
-		self.assertFalse(
-			hasattr(payments_module, "create_order"),
-			"lms.lms.payments.create_order duplicates the payments app controller",
-		)
-
 	def test_controller_still_gets_an_order_created(self):
 		"""Delegating must not lose the order. `get_payment_url` creates one
 		because LMS no longer supplies an `order_id`."""
@@ -123,6 +118,51 @@ class TestPaymentLink(BaseTestUtils):
 
 		self.assertEqual(self.controller.get_payment_url_calls[0]["amount"], 500)
 
+	def test_order_receipt_names_the_lms_payment(self):
+		"""The payment callback accepts a Razorpay payment only when its order's
+		receipt is the LMS Payment being credited."""
+		self._buy_course()
+
+		receipt = self.controller.create_order_calls[0]["receipt"]
+		self.assertEqual(
+			frappe.db.get_value("LMS Payment", receipt, "payment_for_document"), self.course.name
+		)
+
+	def _buy_course_billed_to(self, billing_country, country):
+		for field, value in (("apply_gst", 1), ("show_usd_equivalent", 0)):
+			original = frappe.db.get_single_value("LMS Settings", field)
+			frappe.db.set_single_value("LMS Settings", field, value)
+			self.addCleanup(frappe.db.set_single_value, "LMS Settings", field, original)
+
+		frappe.call(
+			payments_module.get_payment_link,
+			doctype="LMS Course",
+			docname=self.course.name,
+			address={
+				"billing_name": "Test Buyer",
+				"address_line1": "1 Test Street",
+				"city": "Test City",
+				"country": billing_country,
+				"source": "Website",
+				"member_consent": 1,
+			},
+			payment_for_certificate=0,
+			country=country,
+		)
+		return frappe.get_last_doc("LMS Payment", filters={"member": frappe.session.user})
+
+	def test_gst_follows_the_billing_address_not_the_country_argument(self):
+		payment = self._buy_course_billed_to("India", country="Nepal")
+
+		self.assertEqual(self.controller.get_payment_url_calls[0]["amount"], 590)
+		self.assertEqual(payment.amount_with_gst, 590)
+
+	def test_no_gst_for_a_billing_address_outside_india(self):
+		payment = self._buy_course_billed_to("Nepal", country="India")
+
+		self.assertEqual(self.controller.get_payment_url_calls[0]["amount"], 500)
+		self.assertEqual(payment.amount_with_gst, 0)
+
 	def test_the_request_carrying_the_order_id_is_written_last(self):
 		"""The controller writes two Integration Requests per attempt: the paise
 		order payload, then the checkout payload with the `order_id`.
@@ -135,3 +175,13 @@ class TestPaymentLink(BaseTestUtils):
 		self.assertEqual(len(self.controller.integration_requests), 2)
 		self.assertNotIn("order_id", self.controller.integration_requests[0])
 		self.assertEqual(self.controller.integration_requests[-1]["order_id"], "order_TEST123")
+
+
+class TestPaymentsModuleShape(unittest.TestCase):
+	def test_no_create_order_helper_remains(self):
+		"""`create_order` in lms.lms.payments was a stale copy of logic that has
+		since moved into the payments app."""
+		self.assertFalse(
+			hasattr(payments_module, "create_order"),
+			"lms.lms.payments.create_order duplicates the payments app controller",
+		)

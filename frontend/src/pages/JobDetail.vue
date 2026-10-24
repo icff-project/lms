@@ -6,32 +6,26 @@
 					v-if="user.data?.name && !readOnlyMode"
 					class="flex items-center gap-2"
 				>
-					<router-link
+					<HeaderButton
 						v-if="canManageJob && applicantCount > 0"
-						:to="{
+						:route="{
 							name: 'JobApplications',
 							params: { job: job.data?.name },
 						}"
-					>
-						<HeaderButton
-							:label="__('View Applications')"
-							icon="lucide-square-user-round"
-							variant="subtle"
-						/>
-					</router-link>
-					<router-link
+						:label="__('View Applications')"
+						icon="lucide-square-user-round"
+						variant="subtle"
+					/>
+					<HeaderButton
 						v-if="canManageJob"
-						:to="{
+						:route="{
 							name: 'JobForm',
 							params: { jobName: job.data?.name },
 						}"
-					>
-						<HeaderButton
-							:label="__('Edit')"
-							icon="lucide-pencil"
-							variant="subtle"
-						/>
-					</router-link>
+						:label="__('Edit')"
+						icon="lucide-pencil"
+						variant="subtle"
+					/>
 					<HeaderButton
 						:label="__('Visit Website')"
 						icon="lucide-square-arrow-out-up-right"
@@ -66,22 +60,24 @@
 				<div class="space-y-5 mb-12">
 					<div class="flex">
 						<a
-							:href="job.data.company_website"
-							target="_blank"
-							rel="noopener noreferrer"
+							:href="safeUrl(job.data.company_website)"
+							v-external
+							:aria-label="job.data.company_name"
 							class="me-4"
 						>
-							<img
-								:src="job.data.company_logo"
-								class="size-10 rounded-lg object-contain cursor-pointer"
-								:alt="job.data.company_name"
+							<Avatar
+								:image="safeUrl(job.data.company_logo)"
+								:label="job.data.company_name"
+								size="2xl"
+								shape="square"
+								class="cursor-pointer"
 							/>
 						</a>
 						<div class="">
 							<h1 class="text-xl text-ink-gray-9 font-semibold mb-1">
 								{{ job.data.job_title }}
 							</h1>
-							<div class="text-sm text-ink-gray-5 font-semibold">
+							<div class="text-sm text-ink-gray-6 font-semibold">
 								{{ job.data.company_name }} - {{ job.data.location }},
 								{{ job.data.country }}
 							</div>
@@ -93,7 +89,7 @@
 							<template #prefix>
 								<span class="lucide-calendar-days size-3 text-ink-gray-7" />
 							</template>
-							{{ dayjs(job.data.creation).fromNow() }}
+							{{ serverTime(job.data.creation).fromNow() }}
 						</Badge>
 						<Badge size="lg">
 							<template #prefix>
@@ -128,7 +124,7 @@
 				</div>
 
 				<p
-					v-html="sanitizeRichHTML(job.data.description)"
+					v-safe-html:rich="job.data.description"
 					class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-12"
 				></p>
 			</div>
@@ -141,16 +137,17 @@
 	</div>
 </template>
 <script setup>
-import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
-import { Badge, createResource, usePageMeta } from 'frappe-ui'
+import { Avatar, Badge, createResource, usePageMeta } from 'frappe-ui'
 import { inject, ref, computed, watch, nextTick } from 'vue'
 import { sessionStore } from '../stores/session'
-import PageHeader from '@/components/Layouts/PageHeader.vue'
+import PageHeader from '@/components/Layouts/pages/PageHeader.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import JobApplicationModal from '@/components/Modals/JobApplicationModal.vue'
+import { safeUrl } from '@/utils/safeUrl'
+import { openExternal } from '@/utils/openExternal'
+import { serverTime } from '@/utils/dayjs'
 
 const user = inject('$user')
-const dayjs = inject('$dayjs')
 const { brand } = sessionStore()
 const showApplicationModal = ref(false)
 const readOnlyMode = window.read_only_mode
@@ -216,8 +213,11 @@ const redirectToLogin = (job) => {
 	window.location.href = `/login?redirect-to=/job-openings/${job}`
 }
 
+// A company_website is a plain Data field, so it often arrives without a
+// scheme. Left as typed it opens a path under /lms; the allowlist would reject
+// it outright. Naming https keeps the link working either way.
 const redirectToWebsite = (url) => {
-	window.open(url, '_blank')
+	openExternal(/^https?:\/\//i.test(url ?? '') ? url : `https://${url}`)
 }
 
 const canManageJob = computed(() => {

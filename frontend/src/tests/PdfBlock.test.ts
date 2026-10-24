@@ -23,16 +23,9 @@ const onRejection = (reason: unknown) => {
 		unexpectedRejections.push(String(message ?? reason))
 	}
 }
-// Reached via globalThis because this tsconfig sets `types: []`, so there are
-// no @types/node globals to declare `process`.
-const proc = (globalThis as { process?: NodeEventTarget }).process
-type NodeEventTarget = {
-	on(event: string, listener: (reason: unknown) => void): void
-	off(event: string, listener: (reason: unknown) => void): void
-}
-proc?.on('unhandledRejection', onRejection)
+process.on('unhandledRejection', onRejection)
 afterAll(() => {
-	proc?.off('unhandledRejection', onRejection)
+	process.off('unhandledRejection', onRejection)
 	expect(unexpectedRejections).toEqual([])
 })
 
@@ -138,8 +131,13 @@ describe('PdfBlock', () => {
 	})
 
 	it('shows an error state with a fallback link when the PDF fails to load', async () => {
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
 		state.shouldReject = true
 		const wrapper = await mountPdf()
+		expect(logged).toHaveBeenCalledWith(
+			'PdfBlock: failed to load PDF',
+			expect.any(Error)
+		)
 		expect(wrapper.find('.pdf-error').exists()).toBe(true)
 		expect(wrapper.find('.pdf-fallback-link').attributes('href')).toBe(
 			'/files/x.pdf'

@@ -22,6 +22,15 @@
 					:label="__('Self enrollment')"
 					:description="__('Let users enroll themselves.')"
 				/>
+				<BooleanSwitch
+					size="sm"
+					v-model="doc.enforce_lesson_completion"
+					:label="__('Enforce Lesson Completion')"
+					:description="
+						__('Students must complete each lesson before the next one opens.')
+					"
+					@update:modelValue="markDirty()"
+				/>
 			</div>
 		</CollapsibleSection>
 
@@ -39,6 +48,7 @@
 					<Link
 						v-model="doc.currency"
 						doctype="Currency"
+						query="lms.lms.api.search_currencies"
 						:label="__('Currency')"
 						:filters="{ enabled: 1 }"
 						:placeholder="__('Select currency')"
@@ -93,6 +103,7 @@
 						<Link
 							v-model="doc.currency"
 							doctype="Currency"
+							query="lms.lms.api.search_currencies"
 							:label="__('Currency')"
 							:filters="{ enabled: 1 }"
 							:placeholder="__('Select currency')"
@@ -195,6 +206,7 @@ import Link from '@/components/Controls/Link.vue'
 import NewMemberModal from '@/components/Modals/NewMemberModal.vue'
 import { useSettings } from '@/stores/settings'
 import type { CourseFormContext, Resource } from '@/types'
+import { openExternal } from '@/utils/openExternal'
 
 const { resource, markDirty } = inject<CourseFormContext>('courseForm')!
 const dayjs = inject('$dayjs') as typeof import('dayjs')
@@ -252,7 +264,7 @@ function setPaidCertificate(val: boolean) {
 }
 
 function openPaymentsApp() {
-	window.open('https://frappecloud.com/marketplace/apps/payments', '_blank')
+	openExternal('https://frappecloud.com/marketplace/apps/payments')
 }
 
 const timezoneResource = createResource({
@@ -270,7 +282,7 @@ function openEvaluatorModal() {
 }
 
 function openPrintFormats() {
-	window.open('/app/print-format?doc_type=LMS Certificate', '_blank')
+	openExternal('/app/print-format?doc_type=LMS Certificate')
 }
 
 function onEvaluatorCreated(created: { name: string }) {
